@@ -37,7 +37,7 @@ const doctorSchema = new mongoose.Schema(
       },
     ],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Doctor = mongoose.model("Doctor", doctorSchema);
