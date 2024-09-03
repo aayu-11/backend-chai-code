@@ -15,7 +15,7 @@ const subtodoSchema = new mongoose.Schema(
       ref: "Todo",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Subtodo = mongoose.model("Subtodo", subtodoSchema);
