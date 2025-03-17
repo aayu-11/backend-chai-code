@@ -172,7 +172,9 @@ const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
     {
-      $set: { refreshToken: undefined },
+      $unset: {
+        refreshToken: 1,
+      },
     },
     {
       new: true,
@@ -319,11 +321,13 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   if (!avatarLocalPath) {
     throw new ApiError(400, "Please provide an avatar image");
   }
+  // console.log("avatarLocalPath : ", avatarLocalPath);
 
   // upload the image to cloudinary
   const avatar = await uploadOnCloudinary(avatarLocalPath);
+  // console.log("avatar : ", avatar);
 
-  if (!avatar.url) {
+  if (!avatar?.url) {
     throw new ApiError(500, "Image upload failed");
   }
 
@@ -444,7 +448,7 @@ const getUserChannelDetails = asyncHandler(async (req, res) => {
 const getWatchHistory = asyncHandler(async (req, res) => {
   const user = await User.aggregate([
     {
-      $match: { _id: new mongoose.Schema.Types.ObjectId(req.user._id) },
+      $match: { _id: new mongoose.Types.ObjectId(req.user._id) },
     },
     {
       $lookup: {
