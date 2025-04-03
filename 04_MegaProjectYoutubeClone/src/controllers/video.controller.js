@@ -10,7 +10,7 @@ import { Like } from "../models/like.model.js";
 
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
-  console.log("query", req.query);
+  console.log(userId);
   const pipeline = [];
 
   // for using Full Text based search u need to create a search index in mongoDB atlas
@@ -18,7 +18,6 @@ const getAllVideos = asyncHandler(async (req, res) => {
   // Field mappings specify which fields within your documents should be indexed for text search.
   // this helps in seraching only in title, desc providing faster search results
   // here the name of search index is 'search-videos'
-
   if (query) {
     pipeline.push({
       $search: {
@@ -33,8 +32,9 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
   if (userId) {
     if (!isValidObjectId(userId)) {
-      return new ApiError(400, "Invalid request", "User id is not valid");
+      throw new ApiError(400, "Invalid userId");
     }
+
     pipeline.push({
       $match: {
         owner: new mongoose.Types.ObjectId(userId),
@@ -42,10 +42,8 @@ const getAllVideos = asyncHandler(async (req, res) => {
     });
   }
 
-  // fetch videos that are published
-  pipeline.push({
-    $match: { isPublished: true },
-  });
+  // fetch videos only that are set isPublished as true
+  pipeline.push({ $match: { isPublished: true } });
 
   //sortBy can be views, createdAt, duration
   //sortType can be ascending(-1) or descending(1)
@@ -56,11 +54,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
       },
     });
   } else {
-    pipeline.push({
-      $sort: {
-        createdAt: -1,
-      },
-    });
+    pipeline.push({ $sort: { createdAt: -1 } });
   }
 
   pipeline.push(
@@ -86,17 +80,17 @@ const getAllVideos = asyncHandler(async (req, res) => {
   );
 
   const videoAggregate = Video.aggregate(pipeline);
-  console.log("videoAggregate: ", videoAggregate);
+
   const options = {
-    page: parseInt(page),
-    limit: parseInt(limit),
+    page: parseInt(page, 10),
+    limit: parseInt(limit, 10),
   };
-  const videos = await Video.aggregatePaginate(videoAggregate, options);
-  console.log("videos: ", videos);
+
+  const video = await Video.aggregatePaginate(videoAggregate, options);
 
   return res
     .status(200)
-    .json(new ApiResponse(200, videos, "Videos fetched successfully"));
+    .json(new ApiResponse(200, video, "Videos fetched successfully"));
 });
 
 const publishAVideo = asyncHandler(async (req, res) => {
@@ -109,8 +103,6 @@ const publishAVideo = asyncHandler(async (req, res) => {
       "Title and description are required"
     );
   }
-
-  console.log("req.files", req.files);
 
   const videoLocalFilePath = req.files?.videoFile[0]?.path;
   const thumbnailLocalFilePath = req.files?.thumbnail[0]?.path;
@@ -270,6 +262,7 @@ const getVideoById = asyncHandler(async (req, res) => {
   if (!video || video.length === 0) {
     return new ApiError(404, "Not found", "Video not found");
   }
+  console.log(video);
 
   // increment views count if fetched successfully
   await Video.findByIdAndUpdate(videoId, { $inc: { views: 1 } });
@@ -294,7 +287,7 @@ const updateVideo = asyncHandler(async (req, res) => {
   }
 
   if (!(title && description)) {
-    throw new ApiError(
+    return new ApiError(
       400,
       "Invalid request",
       "Title and description are required"
@@ -302,6 +295,7 @@ const updateVideo = asyncHandler(async (req, res) => {
   }
 
   const video = await Video.findById(videoId);
+  console.log(video);
   if (!video) {
     return new ApiError(404, "Not found", "Video not found");
   }
@@ -317,12 +311,13 @@ const updateVideo = asyncHandler(async (req, res) => {
   // deleting old thumbnail and updating with new one
   const thumbnailToDelete = video.thumbnail.publicId;
 
-  const thumbnailLocalFilePath = req.files?.path;
-
+  const thumbnailLocalFilePath = req.file?.path;
+  console.log(thumbnailLocalFilePath);
   if (!thumbnailLocalFilePath) {
     return new ApiError(400, "Invalid request", "Thumbnail not found");
   }
 
+  console.log("uploading thumbnail to cloudinary");
   const thumbnail = await uploadOnCloudinary(thumbnailLocalFilePath);
 
   if (!thumbnail) {
@@ -333,6 +328,8 @@ const updateVideo = asyncHandler(async (req, res) => {
     );
   }
 
+  console.log(thumbnail);
+  console.log(thumbnailToDelete);
   const updatedVideo = await Video.findByIdAndUpdate(
     videoId,
     {
@@ -351,6 +348,7 @@ const updateVideo = asyncHandler(async (req, res) => {
   }
 
   if (updatedVideo) {
+    console.log("Deleting thumbnail from cloudinary");
     await deleteOnCloudinary(thumbnailToDelete);
   }
 
